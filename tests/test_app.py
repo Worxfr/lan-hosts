@@ -101,3 +101,8 @@ def test_parse_arp_scan():
 def test_index_served(tmp_path, monkeypatch):
     r = client(mk(tmp_path, monkeypatch)).get("/")
     assert r.status_code == 200 and "LAN Hosts" in r.text
+
+
+def test_ui_uses_relative_api_paths(tmp_path, monkeypatch):
+    html = client(mk(tmp_path, monkeypatch)).get("/").text
+    assert "'/api/" not in html and "`/api/" not in html
