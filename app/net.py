@@ -25,7 +25,10 @@ def parse_networks(text: str) -> list:
     return out
 
 
-def local_networks() -> list:
+SKIP_SCAN_IF = ("docker", "br-", "veth", "tailscale", "virbr", "cni", "flannel")
+
+
+def local_networks(for_scan: bool = False) -> list:
     """IPv4 networks of the machine's non-loopback interfaces (host network mode)."""
     try:
         data = json.loads(subprocess.run(["ip", "-j", "-4", "addr"], capture_output=True,
@@ -34,7 +37,8 @@ def local_networks() -> list:
         return []
     nets = []
     for itf in data:
-        if itf.get("ifname") == "lo":
+        name = itf.get("ifname", "")
+        if name == "lo" or (for_scan and name.startswith(SKIP_SCAN_IF)):
             continue
         for a in itf.get("addr_info", []):
             nets.append(ipaddress.ip_network(f"{a['local']}/{a['prefixlen']}", strict=False))
@@ -107,8 +111,8 @@ def parse_arp_scan(text: str) -> list:
 async def scan(networks: list, interface: str = "") -> list:
     results = {}
     for net in networks:
-        if net.prefixlen < 16:
-            continue  # refuse huge ranges
+        if net.prefixlen < 20 or net.prefixlen > 30:
+            continue  # refuse huge ranges and single addresses
         cmd = ["arp-scan", "-x"]
         if interface:
             cmd += ["-I", interface]

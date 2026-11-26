@@ -6,7 +6,7 @@ from app.main import create_app
 
 
 def mk(tmp_path, monkeypatch, nets="testclient/32", **env):
-    monkeypatch.setattr(net, "local_networks", lambda: [])
+    monkeypatch.setattr(net, "local_networks", lambda for_scan=False: [])
     monkeypatch.setenv("ALLOWED_NETWORKS", "10.0.0.0/8")
     for k, v in env.items():
         monkeypatch.setenv(k, v)

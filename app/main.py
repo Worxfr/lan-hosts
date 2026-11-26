@@ -132,7 +132,7 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
 
     @app.post("/api/scan")
     async def scan():
-        nets = [n for n in net.local_networks()] + extra_nets()
+        nets = net.local_networks(for_scan=True) + extra_nets()
         known = {h["mac"] for h in db.hosts() if h["mac"]}
         found = await net.scan(nets, iface)
         for f in found:
