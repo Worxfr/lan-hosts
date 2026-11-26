@@ -8,8 +8,10 @@ services:
     cap_add: [NET_RAW, NET_ADMIN]
     environment:
       PORT: "8088"
-      # ALLOWED_NETWORKS: "10.0.0.0/24"      # extra networks (the host's own LAN is always allowed)
-      # TRUSTED_PROXIES: "192.168.1.10/32"   # if behind a reverse proxy
+      # Set these in a .env file next to this one (see README).
+      HOST: ${HOST:-0.0.0.0}                    # address to listen on; use the proxy's gateway to hide the port from the LAN
+      ALLOWED_NETWORKS: ${ALLOWED_NETWORKS:-}   # extra networks (the host's own LAN is always allowed)
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}     # reverse proxies whose X-Forwarded-For is trusted
     volumes:
       - lan-hosts-data:/data
 volumes:
