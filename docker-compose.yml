@@ -1,0 +1,16 @@
+services:
+  lan-hosts:
+    image: ghcr.io/worxfr/lan-hosts:latest
+    container_name: lan-hosts
+    restart: unless-stopped
+    # ARP and Wake-on-LAN broadcasts must reach the LAN: host network mode.
+    network_mode: host
+    cap_add: [NET_RAW, NET_ADMIN]
+    environment:
+      PORT: "8088"
+      # ALLOWED_NETWORKS: "10.0.0.0/24"      # extra networks (the host's own LAN is always allowed)
+      # TRUSTED_PROXIES: "192.168.1.10/32"   # if behind a reverse proxy
+    volumes:
+      - lan-hosts-data:/data
+volumes:
+  lan-hosts-data:
