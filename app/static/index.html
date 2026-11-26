@@ -1,60 +1,142 @@
 <!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
 <title>LAN Hosts</title>
 <style>
-:root{--bg:#f4f7fb;--card:#fff;--tx:#1d2733;--mut:#6b7a8c;--ok:#16a34a;--ko:#dc2626;--ac:#2563eb;--bd:#e3e9f1}
-*{box-sizing:border-box}body{margin:0;font:15px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--tx)}
-header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:16px 24px;background:var(--card);border-bottom:1px solid var(--bd)}
-h1{margin:0;font-size:20px}main{max-width:900px;margin:24px auto;padding:0 16px}
-button{font:inherit;border:0;border-radius:8px;padding:8px 14px;background:var(--ac);color:#fff;cursor:pointer}
-button.sec{background:#e8eef7;color:var(--tx)}button.dng{background:#fee2e2;color:#991b1b}button:disabled{opacity:.5}
-.row{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px 16px;margin-bottom:10px}
-.dot{width:12px;height:12px;border-radius:50%;background:#cbd5e1;flex:none}.up .dot{background:var(--ok)}.down .dot{background:var(--ko)}
-.info{flex:1;min-width:0}.name{font-weight:600}.sub{color:var(--mut);font-size:13px}
-.panel{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:16px}
-input{font:inherit;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;min-width:0}
-form{display:flex;flex-wrap:wrap;gap:8px}h2{font-size:16px;margin:0 0 10px}.empty{color:var(--mut);text-align:center;padding:24px}
-#msg{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1d2733;color:#fff;padding:8px 16px;border-radius:8px;display:none}
+:root{--bg:#eef3fb;--card:#fff;--tx:#162033;--mut:#64748b;--bd:#e2e8f2;--ac:#2563eb;--ac2:#1d4ed8;--acs:#e8f0ff;
+--ok:#16a34a;--oks:#dcfce7;--ko:#dc2626;--kos:#fee2e2;--idle:#94a3b8;--r:16px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:96px}
+svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+header{position:sticky;top:0;z-index:5;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;padding:12px 16px;
+ padding-top:calc(12px + env(safe-area-inset-top));box-shadow:0 2px 12px #1e3a8a33}
+.bar{max-width:920px;margin:auto;display:flex;align-items:center;gap:10px}
+.logo{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.logo svg{width:28px;height:28px}h1{margin:0;font-size:19px;letter-spacing:.2px}
+.ttl{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}h1{white-space:nowrap}
+.pill{background:#ffffff26;border-radius:99px;padding:1px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+.ib{width:42px;height:42px;border-radius:12px;border:0;background:#ffffff22;color:#fff;display:grid;place-items:center;cursor:pointer;transition:background .15s}
+.ib:hover{background:#ffffff40}.ib:active{transform:scale(.94)}
+.spin svg{animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+.btn{font:inherit;font-weight:600;border:0;border-radius:12px;padding:10px 16px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+ background:var(--ac);color:#fff;transition:background .15s,transform .1s}
+.btn:hover{background:var(--ac2)}.btn:active{transform:scale(.97)}.btn:disabled{opacity:.45;cursor:default}
+.btn.soft{background:var(--acs);color:var(--ac2)}.btn.soft:hover{background:#d6e4ff}
+.btn.red{background:var(--kos);color:#991b1b}.btn.red:hover{background:#fecaca}.btn.grey{background:#eef2f7;color:var(--tx)}
+main{max-width:920px;margin:18px auto;padding:0 14px}
+.tools{display:flex;gap:10px;margin-bottom:14px}
+.search{flex:1;position:relative}.search svg{position:absolute;left:12px;top:11px;color:var(--mut);width:18px}
+.search input{width:100%;padding:11px 12px 11px 38px}
+input{font:inherit;padding:11px 12px;border:1.5px solid var(--bd);border-radius:12px;background:#fff;color:var(--tx);min-width:0;width:100%}
+input:focus{outline:0;border-color:var(--ac);box-shadow:0 0 0 3px #2563eb22}
+.list{display:grid;gap:12px}
+.card{background:var(--card);border-radius:var(--r);padding:14px 16px;border:1px solid var(--bd);
+ display:grid;grid-template-columns:auto 1fr;grid-template-areas:"dot main" "act act";gap:12px 14px;align-items:center;--c:var(--idle);box-shadow:inset 5px 0 0 var(--c),0 1px 3px #1e293b14}
+.card.up{--c:var(--ok)}.card.down{--c:var(--ko)}
+.dot{grid-area:dot;align-self:start;margin:5px 0 0 6px;width:14px;height:14px;border-radius:50%;background:var(--idle)}
+.up .dot{background:var(--ok);box-shadow:0 0 0 5px var(--oks)}.down .dot{background:var(--ko);box-shadow:0 0 0 5px var(--kos)}
+.main{grid-area:main;min-width:0}.name{font-weight:700;font-size:16px;overflow-wrap:anywhere}
+.meta{display:flex;flex-wrap:wrap;gap:6px 8px;margin-top:6px;align-items:center}
+.chip{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:#f1f5f9;border-radius:8px;padding:3px 8px;color:#334155}
+.st{font-size:13px;font-weight:600}.up .st{color:var(--ok)}.down .st{color:var(--ko)}.idle .st{color:var(--mut)}
+.act{grid-area:act;display:grid;grid-template-columns:1fr 46px;gap:8px}
+.act .btn{padding:10px}
+@media(min-width:640px){.card{grid-template-columns:auto 1fr auto;grid-template-areas:"dot main act"}.act{grid-template-columns:auto 46px}.act .btn:first-child{padding:10px 18px}}
+.empty{text-align:center;color:var(--mut);padding:40px 16px;background:var(--card);border-radius:var(--r);border:1px dashed var(--bd)}
+.empty svg{width:40px;height:40px;margin-bottom:8px;color:var(--idle)}
+.fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));height:56px;padding:0 22px;border-radius:28px;box-shadow:0 6px 20px #2563eb55;z-index:4}
+dialog{border:0;border-radius:20px;padding:0;width:min(480px,calc(100% - 24px));max-height:calc(100% - 24px);color:var(--tx);box-shadow:0 20px 60px #0f172a55}
+dialog::backdrop{background:#0f172a66;backdrop-filter:blur(2px)}
+.dh{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 6px}.dh h2{margin:0;font-size:18px}
+.db{padding:8px 18px 18px;display:grid;gap:12px}.x{background:#eef2f7;color:var(--tx);width:36px;height:36px}
+label{font-size:13px;font-weight:600;color:var(--mut);display:grid;gap:5px}
+.row2{display:flex;gap:8px}.row2 .btn{flex:1}
+.found{display:grid;gap:8px;max-height:55vh;overflow:auto}
+.f{display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid var(--bd);border-radius:12px;padding:10px 12px}
+.f .main{flex:1}.f .sub{font-size:12.5px;color:var(--mut);overflow-wrap:anywhere}.done{color:var(--ok);font-weight:600;font-size:13px}
+.note{font-size:13px;color:var(--mut)}
+@media(max-width:560px){dialog{margin:auto auto 12px}}
+#msg{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);background:#162033;color:#fff;padding:10px 18px;border-radius:12px;opacity:0;pointer-events:none;transition:.25s;z-index:20;max-width:90%}
+#msg.on{opacity:1;transform:translateX(-50%)}
 </style></head><body>
-<header><h1>🖧 LAN Hosts</h1><div>
-<button class="sec" id="refresh">Actualiser</button> <button id="scan">Détecter</button>
-<button class="sec" id="netbtn">Réseaux autorisés</button></div></header>
+<header><div class="bar">
+ <div class="logo"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg>
+ <div class="ttl"><h1>LAN Hosts</h1><span class="pill" id="sum">…</span></div></div>
+ <button class="ib" id="refresh" title="Actualiser"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg></button>
+ <button class="ib" id="scan" title="Détecter"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 12l6-6"/></svg></button>
+ <button class="ib" id="netbtn" title="Réseaux autorisés"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></button>
+</div></header>
 <main>
-<div class="panel"><h2>Ajouter un hôte</h2><form id="add">
-<input name="name" placeholder="Nom" required><input name="ip" placeholder="Adresse IP"><input name="mac" placeholder="Adresse MAC (aa:bb:…)">
-<button>Ajouter</button></form></div>
-<div class="panel" id="scanpanel" hidden><h2>Hôtes détectés</h2><div id="found"></div></div>
-<div class="panel" id="netpanel" hidden><h2>Réseaux autorisés</h2><div class="sub" id="netinfo"></div>
-<form id="netform"><input name="nets" size="40" placeholder="Réseaux supplémentaires, ex. 10.0.0.0/24"><button>Enregistrer</button></form></div>
-<div id="list"></div></main><div id="msg"></div>
+ <div class="tools"><div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input id="q" placeholder="Rechercher un hôte" autocomplete="off"></div></div>
+ <div class="list" id="list"></div>
+</main>
+<button class="btn fab" id="addbtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Ajouter</button>
+
+<dialog id="dlg"><form method="dialog" id="hf">
+ <div class="dh"><h2 id="dt">Ajouter un hôte</h2><button type="button" class="ib x" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+ <div class="db">
+  <label>Nom<input name="name" required maxlength="80" autocomplete="off"></label>
+  <label>Adresse IP<input name="ip" placeholder="192.168.1.10" inputmode="decimal" autocomplete="off"></label>
+  <label>Adresse MAC<input name="mac" placeholder="aa:bb:cc:dd:ee:ff" autocomplete="off" autocapitalize="off"></label>
+  <div class="note">L’IP sert à savoir si l’hôte est allumé, la MAC sert à le réveiller.</div>
+  <div class="row2"><button type="button" class="btn red" id="del" hidden>Supprimer</button><button class="btn" id="save">Enregistrer</button></div>
+ </div></form></dialog>
+
+<dialog id="sdlg"><div class="dh"><h2>Hôtes détectés</h2><button class="ib x" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+ <div class="db"><div class="found" id="found"></div></div></dialog>
+
+<dialog id="ndlg"><form id="nf"><div class="dh"><h2>Réseaux autorisés</h2><button type="button" class="ib x" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+ <div class="db"><div class="note" id="netinfo"></div>
+ <label>Réseaux supplémentaires<input name="nets" placeholder="10.0.0.0/24, 100.64.0.0/10" autocomplete="off"></label>
+ <button class="btn">Enregistrer</button></div></form></dialog>
+<div id="msg"></div>
 <script>
 const $=s=>document.querySelector(s);
-function toast(t){const m=$('#msg');m.textContent=t;m.style.display='block';setTimeout(()=>m.style.display='none',3000)}
-async function api(m,u,b){const r=await fetch(u,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});
- if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}throw new Error(d||r.status)}return r.status==204?null:r.json()}
+const IC={pow:'<path d="M12 3v9M6.4 6.6a8 8 0 1 0 11.2 0"/>',edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+ srv:'<rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>'};
+function ic(n){const s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('viewBox','0 0 24 24');s.innerHTML=IC[n];return s}
 function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e}
+let tt;function toast(t){const m=$('#msg');m.textContent=t;m.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>m.classList.remove('on'),2800)}
+async function api(m,u,b){const r=await fetch(u,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});
+ if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}if(Array.isArray(d))d='Valeur invalide';throw new Error(d||('Erreur '+r.status))}return r.status==204?null:r.json()}
 function ago(ts){if(!ts)return'jamais vu';const s=Math.round(Date.now()/1000-ts);return s<90?'vu à l’instant':s<5400?'vu il y a '+Math.round(s/60)+' min':s<172800?'vu il y a '+Math.round(s/3600)+' h':'vu il y a '+Math.round(s/86400)+' j'}
-async function load(){const hs=await api('GET','api/hosts');const l=$('#list');l.replaceChildren();
- if(!hs.length)l.append(el('div','empty','Aucun hôte. Ajoute-en un ou lance une détection.'));
- for(const h of hs){const r=el('div','row '+(h.up===1?'up':h.up===0?'down':''));r.append(el('span','dot'));
-  const i=el('div','info');i.append(el('div','name',h.name));
-  i.append(el('div','sub',[h.ip,h.mac,h.up===1?'allumé':h.up===0?'éteint · '+ago(h.last_seen):'pas encore testé'].filter(Boolean).join(' · ')));r.append(i);
-  const w=el('button','sec','Réveiller');w.disabled=!h.mac;w.onclick=async()=>{try{await api('POST',`api/hosts/${h.id}/wake`);toast('Paquet Wake-on-LAN envoyé')}catch(e){toast(e.message)}};
-  const d=el('button','dng','Supprimer');d.onclick=async()=>{if(confirm('Supprimer '+h.name+' ?')){await api('DELETE','api/hosts/'+h.id);load()}};
-  r.append(w,d);l.append(r)}}
-$('#add').onsubmit=async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));
- try{await api('POST','api/hosts',f);e.target.reset();load()}catch(x){toast(x.message)}};
-$('#refresh').onclick=async()=>{await api('POST','api/refresh');load()};
-$('#scan').onclick=async e=>{e.target.disabled=true;e.target.textContent='Détection…';
- try{const fs=await api('POST','api/scan');$('#scanpanel').hidden=false;const c=$('#found');c.replaceChildren();
-  if(!fs.length)c.append(el('div','empty','Rien trouvé.'));
-  for(const f of fs){const r=el('div','row');const i=el('div','info');i.append(el('div','name',f.ip));i.append(el('div','sub',f.mac+(f.vendor?' · '+f.vendor:'')));r.append(i);
-   if(f.known)r.append(el('span','sub','déjà ajouté'));else{const b=el('button',null,'Ajouter');b.onclick=async()=>{const n=prompt('Nom de cet hôte ?',f.vendor||f.ip);if(!n)return;
-     await api('POST','api/hosts',{name:n,ip:f.ip,mac:f.mac});b.disabled=true;load()};r.append(b)}c.append(r)}}
- catch(x){toast(x.message)}e.target.disabled=false;e.target.textContent='Détecter'};
-$('#netbtn').onclick=async()=>{const p=$('#netpanel');p.hidden=!p.hidden;if(p.hidden)return;const n=await api('GET','api/networks');
- $('#netinfo').textContent='Ton IP : '+n.your_ip+' · détectés : '+n.detected.join(', ')+(n.from_env.length?' · config : '+n.from_env.join(', '):'');
- $('#netform').nets.value=n.extra.join(', ')};
-$('#netform').onsubmit=async e=>{e.preventDefault();try{await api('PUT','api/networks',{networks:e.target.nets.value.split(',').map(s=>s.trim()).filter(Boolean)});toast('Enregistré')}catch(x){toast(x.message)}};
+let HOSTS=[];
+function render(){const f=$('#q').value.trim().toLowerCase();const l=$('#list');l.replaceChildren();
+ const up=HOSTS.filter(h=>h.up===1).length;$('#sum').textContent=HOSTS.length?up+' / '+HOSTS.length+' allumés':'aucun hôte';
+ const hs=HOSTS.filter(h=>!f||[h.name,h.ip,h.mac].join(' ').toLowerCase().includes(f));
+ if(!hs.length){const e=el('div','empty');e.append(ic('srv'));e.append(el('div',null,HOSTS.length?'Aucun résultat.':'Aucun hôte pour l’instant. Ajoute-en un ou lance une détection.'));l.append(e)}
+ for(const h of hs){const k=h.up===1?'up':h.up===0?'down':'idle';const c=el('div','card '+(k==='idle'?'':k)+' '+k);
+  c.append(el('span','dot'));const m=el('div','main');m.append(el('div','name',h.name));
+  const meta=el('div','meta');meta.append(el('span','st',h.up===1?'Allumé':h.up===0?'Éteint · '+ago(h.last_seen):'Pas encore testé'));
+  if(h.ip)meta.append(el('span','chip',h.ip));if(h.mac)meta.append(el('span','chip',h.mac));m.append(meta);c.append(m);
+  const a=el('div','act');const w=el('button','btn soft');w.append(ic('pow'),document.createTextNode('Réveiller'));w.disabled=!h.mac;
+  w.onclick=async()=>{try{await api('POST','api/hosts/'+h.id+'/wake');toast('Paquet de réveil envoyé à '+h.name)}catch(e){toast(e.message)}};
+  const ed=el('button','btn grey');ed.title='Modifier';ed.append(ic('edit'));ed.onclick=()=>openDlg(h);a.append(w,ed);c.append(a);l.append(c)}}
+async function load(){try{HOSTS=await api('GET','api/hosts');render()}catch(e){toast(e.message)}}
+let cur=null;const dlg=$('#dlg'),hf=$('#hf');
+function openDlg(h){cur=h;$('#dt').textContent=h?'Modifier l’hôte':'Ajouter un hôte';hf.name.value=h?h.name:'';hf.ip.value=h&&h.ip||'';hf.mac.value=h&&h.mac||'';
+ $('#del').hidden=!h;dlg.showModal();if(!h)hf.name.focus()}
+$('#addbtn').onclick=()=>openDlg(null);
+hf.onsubmit=async e=>{e.preventDefault();const d={name:hf.name.value,ip:hf.ip.value||null,mac:hf.mac.value||null};
+ try{if(cur)await api('PUT','api/hosts/'+cur.id,d);else await api('POST','api/hosts',d);dlg.close();await load();toast('Enregistré');if(d.ip)refresh(true)}catch(x){toast(x.message)}};
+$('#del').onclick=async()=>{if(confirm('Supprimer '+cur.name+' ?')){await api('DELETE','api/hosts/'+cur.id);dlg.close();load()}};
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('dialog').close());
+document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',e=>{if(e.target===d)d.close()}));
+async function refresh(quiet){const b=$('#refresh');b.classList.add('spin');b.disabled=true;
+ try{HOSTS=await api('POST','api/refresh');render();if(!quiet)toast('État mis à jour')}catch(e){toast(e.message)}b.classList.remove('spin');b.disabled=false}
+$('#refresh').onclick=()=>refresh();
+$('#q').oninput=render;
+$('#scan').onclick=async()=>{const b=$('#scan');b.classList.add('spin');b.disabled=true;toast('Détection en cours…');
+ try{const fs=await api('POST','api/scan');const c=$('#found');c.replaceChildren();
+  if(!fs.length)c.append(el('div','note','Rien trouvé.'));
+  for(const f of fs){const r=el('div','f');const m=el('div','main');m.append(el('div','name',f.ip));m.append(el('div','sub',f.mac+(f.vendor&&f.vendor!=='(Unknown)'?' · '+f.vendor:'')));r.append(m);
+   if(f.known)r.append(el('span','done','Déjà ajouté'));else{const a=el('button','btn soft','Ajouter');a.onclick=()=>{$('#sdlg').close();openDlg(null);hf.name.value=f.vendor&&f.vendor!=='(Unknown)'?f.vendor:'';hf.ip.value=f.ip;hf.mac.value=f.mac;hf.name.focus()};r.append(a)}c.append(r)}
+  $('#sdlg').showModal()}catch(x){toast(x.message)}b.classList.remove('spin');b.disabled=false};
+$('#netbtn').onclick=async()=>{try{const n=await api('GET','api/networks');
+ $('#netinfo').textContent='Ton adresse : '+n.your_ip+'. Réseaux du serveur : '+[...new Set(n.detected)].join(', ')+(n.from_env.length?'. Configurés : '+n.from_env.join(', '):'')+'.';
+ $('#nf').nets.value=n.extra.join(', ');$('#ndlg').showModal()}catch(x){toast(x.message)}};
+$('#nf').onsubmit=async e=>{e.preventDefault();try{await api('PUT','api/networks',{networks:e.target.nets.value.split(',').map(s=>s.trim()).filter(Boolean)});$('#ndlg').close();toast('Enregistré')}catch(x){toast(x.message)}};
 load();setInterval(load,15000);
 </script></body></html>

@@ -106,3 +106,11 @@ def test_index_served(tmp_path, monkeypatch):
 def test_ui_uses_relative_api_paths(tmp_path, monkeypatch):
     html = client(mk(tmp_path, monkeypatch)).get("/").text
     assert "'/api/" not in html and "`/api/" not in html
+
+
+def test_edit_host(tmp_path, monkeypatch):
+    c = client(mk(tmp_path, monkeypatch))
+    hid = c.post("/api/hosts", json={"name": "a", "mac": "aa:bb:cc:dd:ee:ff"}).json()["id"]
+    r = c.put(f"/api/hosts/{hid}", json={"name": "b", "ip": "10.0.0.9", "mac": "AA:BB:CC:DD:EE:00"})
+    assert r.status_code == 200 and r.json()["name"] == "b" and r.json()["mac"] == "aa:bb:cc:dd:ee:00"
+    assert c.put("/api/hosts/999", json={"name": "x", "ip": "10.0.0.1"}).status_code == 404
