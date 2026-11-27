@@ -5,6 +5,8 @@ import json
 import re
 import socket
 import subprocess
+import time
+from urllib.parse import urlparse
 
 MAC_RE = re.compile(r"^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$", re.I)
 
@@ -28,7 +30,21 @@ def parse_networks(text: str) -> list:
 SKIP_SCAN_IF = ("docker", "br-", "veth", "tailscale", "virbr", "cni", "flannel")
 
 
+_NET_CACHE = {}
+NET_CACHE_TTL = 30
+
+
 def local_networks(for_scan: bool = False) -> list:
+    """Cached for a few seconds: this runs for every request, even refused ones."""
+    hit = _NET_CACHE.get(for_scan)
+    if hit and time.monotonic() - hit[0] < NET_CACHE_TTL:
+        return hit[1]
+    nets = _local_networks(for_scan)
+    _NET_CACHE[for_scan] = (time.monotonic(), nets)
+    return nets
+
+
+def _local_networks(for_scan: bool = False) -> list:
     """IPv4 networks of the machine's non-loopback interfaces (host network mode)."""
     try:
         data = json.loads(subprocess.run(["ip", "-j", "-4", "addr"], capture_output=True,
@@ -43,6 +59,42 @@ def local_networks(for_scan: bool = False) -> list:
         for a in itf.get("addr_info", []):
             nets.append(ipaddress.ip_network(f"{a['local']}/{a['prefixlen']}", strict=False))
     return nets
+
+
+MIN_PREFIX = {4: 8, 6: 16}
+
+
+def validate_allowed(nets: list) -> list:
+    """Refuse allow-list entries so wide that they open the app to the Internet."""
+    for n in nets:
+        if n.prefixlen < MIN_PREFIX[n.version]:
+            raise ValueError(f"network {n} is too large (minimum /{MIN_PREFIX[n.version]})")
+    return nets
+
+
+def host_allowed(host_header: str, allowed: list) -> bool:
+    """DNS-rebinding guard: with ALLOWED_HOSTS set, only those names (or IP literals) are served."""
+    if not allowed:
+        return True
+    h = (host_header or "").strip().lower()
+    h = h.rsplit(":", 1)[0] if h.count(":") == 1 else h.strip("[]")
+    try:
+        ipaddress.ip_address(h.strip("[]"))
+        return True
+    except ValueError:
+        return h in allowed
+
+
+def cross_site(method: str, headers) -> bool:
+    """Browser-sent cross-origin write requests (CSRF). Non-browser clients send no Origin."""
+    if method in ("GET", "HEAD", "OPTIONS"):
+        return False
+    if headers.get("sec-fetch-site", "").lower() == "cross-site":
+        return True
+    origin = headers.get("origin")
+    if origin is None:
+        return False
+    return urlparse(origin).netloc.lower() != headers.get("host", "").lower()
 
 
 def client_ip(peer: str, xff: str, trusted: list):

@@ -27,6 +27,7 @@ No authentication: do not expose it outside your LAN.
 | `PORT` | `8088` | HTTP port |
 | `ALLOWED_NETWORKS` | empty | extra CIDRs allowed, comma separated |
 | `TRUSTED_PROXIES` | empty | reverse proxies whose `X-Forwarded-For` is trusted |
+| `ALLOWED_HOSTS` | empty | host names accepted in the `Host` header, IP addresses always accepted (protects against DNS rebinding) |
 | `ROOT_PATH` | empty | sub-path when behind a proxy |
 | `API_KEYS_BYPASS_ACL` | `true` | a valid API key works from any network |
 | `POLL_INTERVAL` | `30` | seconds between status checks |
@@ -38,6 +39,16 @@ No authentication: do not expose it outside your LAN.
 To make all traffic go through a reverse proxy (Caddy, nginx...), set `HOST` to the Docker bridge gateway the proxy can reach (e.g. `172.18.0.1`) so the port is not reachable directly, and `TRUSTED_PROXIES` to the proxy container address.
 
 Behind a reverse proxy the server sees the proxy's address: declare it in `TRUSTED_PROXIES` and allow the real clients' network.
+
+## Security notes
+
+- No login: protection is the network allow-list. Entries wider than `/8` are refused.
+- Browsers: cross-site write requests are refused (`Origin` / `Sec-Fetch-Site` check), and responses carry `X-Frame-Options`, CSP and `nosniff`.
+- Set `ALLOWED_HOSTS` to your real host names when you use names.
+- The container runs as a non-root user with only `NET_RAW`, a read-only filesystem and memory/process limits.
+  If you upgrade from an older version, the data volume must belong to uid 10001:
+  `docker run --rm --user root --entrypoint chown -v lan-hosts_lan-hosts-data:/data ghcr.io/worxfr/lan-hosts:latest -R 10001:10001 /data`
+- Over plain `http://` on the LAN an API key travels unencrypted: prefer an HTTPS address.
 
 ## API
 

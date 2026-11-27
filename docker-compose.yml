@@ -5,13 +5,21 @@ services:
     restart: unless-stopped
     # ARP and Wake-on-LAN broadcasts must reach the LAN: host network mode.
     network_mode: host
-    cap_add: [NET_RAW, NET_ADMIN]
+    # Runs as a non-root user; only raw sockets (ARP) are kept. Do NOT add no-new-privileges:
+    # it would block the file capability the ARP tools rely on.
+    cap_drop: [ALL]
+    cap_add: [NET_RAW]
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 128m
+    pids_limit: 100
     environment:
       PORT: "8088"
       # Set these in a .env file next to this one (see README).
       HOST: ${HOST:-0.0.0.0}                    # address to listen on; use the proxy's gateway to hide the port from the LAN
       ALLOWED_NETWORKS: ${ALLOWED_NETWORKS:-}   # extra networks (the host's own LAN is always allowed)
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}     # reverse proxies whose X-Forwarded-For is trusted
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-}         # optional: host names accepted in the Host header (anti DNS-rebinding)
       ROOT_PATH: ${ROOT_PATH:-}                 # sub-path when served behind a proxy, e.g. /lan-hosts (for /api/docs)
       API_KEYS_BYPASS_ACL: ${API_KEYS_BYPASS_ACL:-true}  # a valid API key works from any network
     volumes:

@@ -47,7 +47,8 @@ class NetworksIn(BaseModel):
 def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
     db = DB(db_path or os.environ.get("DB_PATH", "/data/lan-hosts.db"))
     interval = poll_interval or int(os.environ.get("POLL_INTERVAL", "30"))
-    env_nets = net.parse_networks(os.environ.get("ALLOWED_NETWORKS", ""))
+    env_nets = net.validate_allowed(net.parse_networks(os.environ.get("ALLOWED_NETWORKS", "")))
+    allowed_hosts = [h.strip().lower() for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h.strip()]
     trusted = net.parse_networks(os.environ.get("TRUSTED_PROXIES", ""))
     iface = os.environ.get("SCAN_INTERFACE", "")
     broadcast = os.environ.get("WOL_BROADCAST", "255.255.255.255")
@@ -69,6 +70,10 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
 
     scan_lock = asyncio.Lock()
     rescan_every = int(os.environ.get("RESCAN_INTERVAL", "300"))
+
+    def busy():
+        if scan_lock.locked():
+            raise HTTPException(409, "Un scan est déjà en cours")
 
     async def rescan():
         """ARP-scan the LAN and follow known hosts (by MAC) whose IP changed (DHCP)."""
@@ -98,7 +103,8 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
         while rescan_every > 0:
             await asyncio.sleep(rescan_every)
             try:
-                await rescan()
+                if not scan_lock.locked():
+                    await rescan()
             except Exception:
                 pass
 
@@ -113,12 +119,21 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
                   docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
     app.state.db = db
 
-    @app.middleware("http")
-    async def acl(request: Request, call_next):
+    SEC = {"X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer",
+           "Cross-Origin-Resource-Policy": "same-origin"}
+    CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+           "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+    CSP_DOCS = ("default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://fastapi.tiangolo.com; "
+                "frame-ancestors 'none'")
+
+    async def check(request: Request, call_next):
         peer = request.client.host if request.client else ""
         ip = net.client_ip(peer, request.headers.get("x-forwarded-for", ""), trusted)
         request.state.ip = ip
         request.state.key = None
+        if not net.host_allowed(request.headers.get("host", ""), allowed_hosts):
+            return JSONResponse({"detail": "unknown host name"}, status_code=403)
         token = extract_key(request)
         if token:
             k = db.find_key(hash_key(token))
@@ -133,9 +148,21 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
                 db.touch_key(k["id"])
             if keys_bypass_acl:
                 return await call_next(request)
+        elif net.cross_site(request.method, request.headers):
+            return JSONResponse({"detail": "cross-site request refused"}, status_code=403)
         if not net.is_allowed(ip, allowed_nets()):
             return JSONResponse({"detail": "forbidden"}, status_code=403)
         return await call_next(request)
+
+    @app.middleware("http")
+    async def guard(request: Request, call_next):
+        resp = await check(request, call_next)
+        path = request.url.path
+        resp.headers.update(SEC)
+        resp.headers["Content-Security-Policy"] = CSP_DOCS if path.endswith("/api/docs") else CSP
+        if path.startswith("/api/"):
+            resp.headers["Cache-Control"] = "no-store"
+        return resp
 
     def clean(h: HostIn):
         mac = ip = None
@@ -217,14 +244,17 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
 
     @app.post("/api/rescan")
     async def force_rescan():
+        busy()
         _, changes = await rescan()
         return {"changes": changes, "hosts": db.hosts()}
 
     @app.post("/api/scan")
     async def scan():
+        busy()
         nets = net.local_networks(for_scan=True) + extra_nets()
         known = {h["mac"] for h in db.hosts() if h["mac"]}
-        found = await net.scan(nets, iface)
+        async with scan_lock:
+            found = await net.scan(nets, iface)
         for f in found:
             f["known"] = f["mac"] in known
         return found
@@ -238,7 +268,7 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
     @app.put("/api/networks")
     def put_networks(body: NetworksIn, request: Request):
         try:
-            nets = net.parse_networks(",".join(body.networks))
+            nets = net.validate_allowed(net.parse_networks(",".join(body.networks)))
         except ValueError as e:
             raise HTTPException(422, str(e))
         future = net.local_networks() + env_nets + nets
