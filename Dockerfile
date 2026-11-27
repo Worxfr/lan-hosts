@@ -1,8 +1,9 @@
 FROM python:3.12-slim
+# Raw sockets for ARP without running as root: file capability on the two ARP tools only.
 RUN apt-get update && apt-get install -y --no-install-recommends arping arp-scan iputils-ping iproute2 libcap2-bin \
     && rm -rf /var/lib/apt/lists/* \
-    # Raw sockets for ARP without running as root: file capability on the two ARP tools only.
-    && setcap cap_net_raw+ep "$(command -v arping)" "$(command -v arp-scan)" \
+    && setcap cap_net_raw+ep "$(command -v arping)" \
+    && setcap cap_net_raw+ep "$(command -v arp-scan)" \
     && useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin app \
     && mkdir /data && chown app:app /data
 WORKDIR /srv
