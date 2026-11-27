@@ -67,6 +67,8 @@ label{font-size:13px;font-weight:600;color:var(--mut);display:grid;gap:5px}
 hr{border:0;border-top:1px solid var(--bd);margin:4px 0;width:100%}code{background:#f1f5f9;padding:1px 5px;border-radius:6px}
 .sel{font:inherit;padding:8px;border:1.5px solid var(--bd);border-radius:12px;background:#fff;color:var(--tx)}
 .keyv{font:13px ui-monospace,Menlo,monospace;background:#fef9c3;border-radius:10px;padding:10px;overflow-wrap:anywhere;user-select:all;color:#422006}
+.nchips{display:flex;flex-wrap:wrap;gap:8px}.nc{display:inline-flex;align-items:center;gap:6px;background:var(--acs);color:var(--ac2);border-radius:99px;padding:6px 6px 6px 12px;font:600 13.5px ui-monospace,Menlo,monospace}
+.nc button{border:0;background:#fff;color:#991b1b;width:24px;height:24px;border-radius:50%;cursor:pointer;display:grid;place-items:center;padding:0}.nc button svg{width:14px;height:14px}
 .err{background:#fee2e2;color:#7f1d1d;border-radius:12px;padding:10px 12px;font-size:14px;font-weight:600}
 .note{font-size:13px;color:var(--mut)}
 @media(max-width:560px){dialog{margin:auto auto 12px}}
@@ -105,8 +107,9 @@ hr{border:0;border-top:1px solid var(--bd);margin:4px 0;width:100%}code{backgrou
 
 <dialog id="ndlg"><form id="nf"><div class="dh"><h2>Accès et clés API</h2><button type="button" class="ib x" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
  <div class="db"><div class="note" id="netinfo"></div>
- <label>Réseaux supplémentaires (séparés par des virgules ou des espaces)<input name="nets" placeholder="10.0.0.0/24, 100.64.0.0/10" autocomplete="off"></label>
- <button class="btn">Enregistrer les réseaux</button><div class="err" hidden></div>
+ <div class="note">Réseaux ajoutés (touche × pour en retirer un) :</div><div class="nchips" id="nchips"></div>
+ <label>Ajouter des réseaux (séparés par des virgules ou des espaces)<input name="nets" placeholder="10.0.0.0/24, 100.64.0.0/10" autocomplete="off"></label>
+ <button class="btn">Ajouter</button><div class="err" hidden></div>
  <hr><div class="note"><b>Clés API</b> : pour piloter les hôtes depuis un script. Utilise l’en-tête <code>X-API-Key</code>. Documentation : <a href="api/docs" target="_blank">api/docs</a>.</div>
  <div id="keys" class="found"></div>
  <div class="row2"><input id="kname" placeholder="Nom de la clé" maxlength="60"><select id="kscope" class="sel"><option value="write">Lecture + actions</option><option value="read">Lecture seule</option></select></div>
@@ -174,6 +177,12 @@ $('#scan').onclick=async()=>{const b=$('#scan');b.classList.add('spin');b.disabl
   for(const f of fs){const r=el('div','f');const m=el('div','main');m.append(el('div','name',f.ip));m.append(el('div','sub',f.mac+(f.vendor&&f.vendor!=='(Unknown)'?' · '+f.vendor:'')));r.append(m);
    if(f.known)r.append(el('span','done','Déjà ajouté'));else{const a=el('button','btn soft','Ajouter');a.onclick=()=>{$('#sdlg').close();openDlg(null);hf.name.value=f.vendor&&f.vendor!=='(Unknown)'?f.vendor:'';hf.ip.value=f.ip;hf.mac.value=f.mac;hf.name.focus()};r.append(a)}c.append(r)}
   $('#sdlg').showModal()}catch(x){toast(x.message)}b.classList.remove('spin');b.disabled=false};
+let EXTRA=[];
+function renderNets(){const c=$('#nchips');c.replaceChildren();if(!EXTRA.length)c.append(el('div','note','Aucun réseau ajouté.'));
+ for(const n of EXTRA){const d=el('span','nc',n);const b=el('button');b.type='button';b.title='Retirer '+n;b.setAttribute('aria-label','Retirer '+n);
+  b.innerHTML='<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  b.onclick=()=>saveNets(EXTRA.filter(x=>x!==n),'Réseau '+n+' retiré');d.append(b);c.append(d)}}
+async function saveNets(list,msg){derr($('#ndlg'),'');try{const r=await api('PUT','api/networks',{networks:list});EXTRA=r.extra;renderNets();$('#nf').nets.value='';toast(msg)}catch(x){derr($('#ndlg'),x.message)}}
 async function loadKeys(){const c=$('#keys');c.replaceChildren();const ks=await api('GET','api/keys');
  if(!ks.length)c.append(el('div','note','Aucune clé.'));
  for(const k of ks){const r=el('div','f');const m=el('div','main');m.append(el('div','name',k.name));
@@ -184,7 +193,7 @@ $('#kadd').onclick=async()=>{const n=$('#kname').value.trim();if(!n){toast('Donn
   o.append(el('div',null,'Copie cette clé maintenant, elle ne sera plus affichée :'));o.append(el('div','keyv',r.key));$('#kname').value='';loadKeys()}catch(x){derr($('#ndlg'),x.message)}};
 $('#netbtn').onclick=async()=>{try{derr($('#ndlg'),'');$('#newkey').hidden=true;loadKeys();const n=await api('GET','api/networks');
  $('#netinfo').textContent='Ton adresse : '+n.your_ip+'. Réseaux du serveur : '+[...new Set(n.detected)].join(', ')+(n.from_env.length?'. Configurés : '+n.from_env.join(', '):'')+'.';
- $('#nf').nets.value=n.extra.join(', ');$('#ndlg').showModal()}catch(x){toast(x.message)}};
-$('#nf').onsubmit=async e=>{e.preventDefault();derr($('#ndlg'),'');try{await api('PUT','api/networks',{networks:e.target.nets.value.split(/[\s,;]+/).filter(Boolean)});$('#ndlg').close();toast('Réseaux enregistrés')}catch(x){derr($('#ndlg'),x.message)}};
+ EXTRA=n.extra;renderNets();$('#nf').nets.value='';$('#ndlg').showModal()}catch(x){toast(x.message)}};
+$('#nf').onsubmit=e=>{e.preventDefault();const add=e.target.nets.value.split(/[\s,;]+/).filter(Boolean);if(!add.length){derr($('#ndlg'),'Saisis au moins un réseau, par exemple 192.168.1.0/24.');return}saveNets([...EXTRA,...add],'Réseaux enregistrés')};
 load();setInterval(load,15000);
 </script></body></html>
