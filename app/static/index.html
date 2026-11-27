@@ -67,6 +67,7 @@ label{font-size:13px;font-weight:600;color:var(--mut);display:grid;gap:5px}
 hr{border:0;border-top:1px solid var(--bd);margin:4px 0;width:100%}code{background:#f1f5f9;padding:1px 5px;border-radius:6px}
 .sel{font:inherit;padding:8px;border:1.5px solid var(--bd);border-radius:12px;background:#fff;color:var(--tx)}
 .keyv{font:13px ui-monospace,Menlo,monospace;background:#fef9c3;border-radius:10px;padding:10px;overflow-wrap:anywhere;user-select:all;color:#422006}
+.err{background:#fee2e2;color:#7f1d1d;border-radius:12px;padding:10px 12px;font-size:14px;font-weight:600}
 .note{font-size:13px;color:var(--mut)}
 @media(max-width:560px){dialog{margin:auto auto 12px}}
 #msg{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);background:#162033;color:#fff;padding:10px 18px;border-radius:12px;opacity:0;pointer-events:none;transition:.25s;z-index:20;max-width:90%}
@@ -104,8 +105,8 @@ hr{border:0;border-top:1px solid var(--bd);margin:4px 0;width:100%}code{backgrou
 
 <dialog id="ndlg"><form id="nf"><div class="dh"><h2>Accès et clés API</h2><button type="button" class="ib x" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
  <div class="db"><div class="note" id="netinfo"></div>
- <label>Réseaux supplémentaires<input name="nets" placeholder="10.0.0.0/24, 100.64.0.0/10" autocomplete="off"></label>
- <button class="btn">Enregistrer les réseaux</button>
+ <label>Réseaux supplémentaires (séparés par des virgules ou des espaces)<input name="nets" placeholder="10.0.0.0/24, 100.64.0.0/10" autocomplete="off"></label>
+ <button class="btn">Enregistrer les réseaux</button><div class="err" hidden></div>
  <hr><div class="note"><b>Clés API</b> : pour piloter les hôtes depuis un script. Utilise l’en-tête <code>X-API-Key</code>. Documentation : <a href="api/docs" target="_blank">api/docs</a>.</div>
  <div id="keys" class="found"></div>
  <div class="row2"><input id="kname" placeholder="Nom de la clé" maxlength="60"><select id="kscope" class="sel"><option value="write">Lecture + actions</option><option value="read">Lecture seule</option></select></div>
@@ -119,9 +120,10 @@ const IC={pow:'<path d="M12 3v9M6.4 6.6a8 8 0 1 0 11.2 0"/>',edit:'<path d="M4 2
  plus:'<path d="M12 5v14M5 12h14"/>'};
 function ic(n){const s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('viewBox','0 0 24 24');s.innerHTML=IC[n];return s}
 function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e}
-let tt;function toast(t){const m=$('#msg');m.textContent=t;m.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>m.classList.remove('on'),2800)}
+let tt;function toast(t){const m=$('#msg');m.textContent=t;m.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>m.classList.remove('on'),Math.max(2800,t.length*70))}
+function derr(dlgEl,msg){let e=dlgEl.querySelector('.err');if(!e){e=el('div','err');dlgEl.querySelector('.db').append(e)}e.hidden=!msg;e.textContent=msg||''}
 async function api(m,u,b){const r=await fetch(u,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});
- if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}if(Array.isArray(d))d='Valeur invalide';throw new Error(d||('Erreur '+r.status))}return r.status==204?null:r.json()}
+ if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}if(Array.isArray(d))d='Saisie invalide : vérifie les champs.';throw new Error(d||('Erreur '+r.status))}return r.status==204?null:r.json()}
 function ago(ts){if(!ts)return'jamais vu';const s=Math.round(Date.now()/1000-ts);return s<90?'vu à l’instant':s<5400?'vu il y a '+Math.round(s/60)+' min':s<172800?'vu il y a '+Math.round(s/3600)+' h':'vu il y a '+Math.round(s/86400)+' j'}
 let HOSTS=[];
 const FILTERS=[['all','Tous'],['up','Allumés'],['down','Éteints'],['idle','Inconnus']];
@@ -149,11 +151,11 @@ function render(){const f=$('#q').value.trim().toLowerCase();const l=$('#list');
   const ed=el('button','btn grey');ed.title='Modifier';ed.append(ic('edit'));ed.onclick=()=>openDlg(h);a.append(w,ed);c.append(a);l.append(c)}}
 async function load(){try{HOSTS=await api('GET','api/hosts');render()}catch(e){toast(e.message)}}
 let cur=null;const dlg=$('#dlg'),hf=$('#hf');
-function openDlg(h){cur=h;$('#dt').textContent=h?'Modifier l’hôte':'Ajouter un hôte';hf.name.value=h?h.name:'';hf.ip.value=h&&h.ip||'';hf.mac.value=h&&h.mac||'';
+function openDlg(h){cur=h;derr(dlg,'');$('#dt').textContent=h?'Modifier l’hôte':'Ajouter un hôte';hf.name.value=h?h.name:'';hf.ip.value=h&&h.ip||'';hf.mac.value=h&&h.mac||'';
  $('#del').hidden=!h;dlg.showModal();if(!h)hf.name.focus()}
 $('#addbtn').onclick=()=>openDlg(null);
-hf.onsubmit=async e=>{e.preventDefault();const d={name:hf.name.value,ip:hf.ip.value||null,mac:hf.mac.value||null};
- try{if(cur)await api('PUT','api/hosts/'+cur.id,d);else await api('POST','api/hosts',d);dlg.close();await load();toast('Enregistré');if(d.ip)refresh(true)}catch(x){toast(x.message)}};
+hf.onsubmit=async e=>{e.preventDefault();derr(dlg,'');const d={name:hf.name.value,ip:hf.ip.value||null,mac:hf.mac.value||null};
+ try{if(cur)await api('PUT','api/hosts/'+cur.id,d);else await api('POST','api/hosts',d);dlg.close();await load();toast('Enregistré');if(d.ip)refresh(true)}catch(x){derr(dlg,x.message)}};
 $('#del').onclick=async()=>{if(confirm('Supprimer '+cur.name+' ?')){await api('DELETE','api/hosts/'+cur.id);dlg.close();load()}};
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',e=>{if(e.target===d)d.close()}));
@@ -179,10 +181,10 @@ async function loadKeys(){const c=$('#keys');c.replaceChildren();const ks=await 
   const d=el('button','btn red','Révoquer');d.onclick=async()=>{if(confirm('Révoquer la clé '+k.name+' ?')){await api('DELETE','api/keys/'+k.id);loadKeys()}};r.append(d);c.append(r)}}
 $('#kadd').onclick=async()=>{const n=$('#kname').value.trim();if(!n){toast('Donne un nom à la clé');return}
  try{const r=await api('POST','api/keys',{name:n,scope:$('#kscope').value});const o=$('#newkey');o.hidden=false;o.replaceChildren();
-  o.append(el('div',null,'Copie cette clé maintenant, elle ne sera plus affichée :'));o.append(el('div','keyv',r.key));$('#kname').value='';loadKeys()}catch(x){toast(x.message)}};
-$('#netbtn').onclick=async()=>{try{$('#newkey').hidden=true;loadKeys();const n=await api('GET','api/networks');
+  o.append(el('div',null,'Copie cette clé maintenant, elle ne sera plus affichée :'));o.append(el('div','keyv',r.key));$('#kname').value='';loadKeys()}catch(x){derr($('#ndlg'),x.message)}};
+$('#netbtn').onclick=async()=>{try{derr($('#ndlg'),'');$('#newkey').hidden=true;loadKeys();const n=await api('GET','api/networks');
  $('#netinfo').textContent='Ton adresse : '+n.your_ip+'. Réseaux du serveur : '+[...new Set(n.detected)].join(', ')+(n.from_env.length?'. Configurés : '+n.from_env.join(', '):'')+'.';
  $('#nf').nets.value=n.extra.join(', ');$('#ndlg').showModal()}catch(x){toast(x.message)}};
-$('#nf').onsubmit=async e=>{e.preventDefault();try{await api('PUT','api/networks',{networks:e.target.nets.value.split(',').map(s=>s.trim()).filter(Boolean)});$('#ndlg').close();toast('Enregistré')}catch(x){toast(x.message)}};
+$('#nf').onsubmit=async e=>{e.preventDefault();derr($('#ndlg'),'');try{await api('PUT','api/networks',{networks:e.target.nets.value.split(/[\s,;]+/).filter(Boolean)});$('#ndlg').close();toast('Réseaux enregistrés')}catch(x){derr($('#ndlg'),x.message)}};
 load();setInterval(load,15000);
 </script></body></html>

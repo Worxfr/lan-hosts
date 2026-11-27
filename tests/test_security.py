@@ -77,3 +77,27 @@ def test_only_one_scan_at_a_time(tmp_path, monkeypatch):
             third = await c.post("/api/scan")
             return (await first).status_code, second.status_code, third.status_code
     assert asyncio.run(go()) == (200, 409, 409)
+
+
+def test_network_messages_are_readable(tmp_path, monkeypatch):
+    c = client(mk(tmp_path, monkeypatch))
+    r = c.put("/api/networks", json={"networks": ["pas-un-reseau"]})
+    assert r.status_code == 422 and "pas-un-reseau" in r.json()["detail"] and "Exemple" in r.json()["detail"]
+    r = c.put("/api/networks", json={"networks": ["0.0.0.0/0"]})
+    assert r.status_code == 422 and "trop large" in r.json()["detail"]
+    assert client(mk(tmp_path, monkeypatch), "8.8.8.8").get("/api/hosts").json()["detail"].startswith("Accès refusé")
+
+
+def test_lockout_message(tmp_path, monkeypatch):
+    app = mk(tmp_path, monkeypatch, ALLOWED_NETWORKS="172.16.0.0/12")
+    assert client(app, "172.16.0.9").put("/api/networks", json={"networks": ["192.168.5.0/24"]}).status_code == 200
+    r = client(app, "192.168.5.9").put("/api/networks", json={"networks": ["10.9.0.0/16"]})
+    assert r.status_code == 409
+    assert "192.168.5.9" in r.json()["detail"] and "192.168.5.0/24" in r.json()["detail"]
+
+
+def test_network_input_forms(tmp_path, monkeypatch):
+    c = client(mk(tmp_path, monkeypatch))
+    r = c.put("/api/networks", json={"networks": ["192.168.1.0/24, 192.168.2.0/24  192.168.3.7", "192.168.1.0/24"]})
+    assert r.status_code == 200 and r.json()["extra"] == ["192.168.1.0/24", "192.168.2.0/24", "192.168.3.7/32"]
+    assert c.put("/api/networks", json={"networks": []}).json()["extra"] == []

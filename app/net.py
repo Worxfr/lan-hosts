@@ -64,11 +64,29 @@ def _local_networks(for_scan: bool = False) -> list:
 MIN_PREFIX = {4: 8, 6: 16}
 
 
+def parse_user_networks(items: list) -> list:
+    """Parse what the user typed (CIDR or bare IP), with messages meant to be read by a person."""
+    out, seen = [], set()
+    for raw in items:
+        for part in re.split(r"[,\s;]+", str(raw).strip()):
+            if not part:
+                continue
+            try:
+                n = ipaddress.ip_network(part, strict=False)
+            except ValueError:
+                raise ValueError(f"« {part[:40]} » n'est pas un réseau valide. Exemple : 192.168.1.0/24")
+            if n not in seen:
+                seen.add(n)
+                out.append(n)
+    return out
+
+
 def validate_allowed(nets: list) -> list:
     """Refuse allow-list entries so wide that they open the app to the Internet."""
     for n in nets:
         if n.prefixlen < MIN_PREFIX[n.version]:
-            raise ValueError(f"network {n} is too large (minimum /{MIN_PREFIX[n.version]})")
+            raise ValueError(f"Le réseau {n} est trop large (minimum /{MIN_PREFIX[n.version]}). "
+                             f"Il ouvrirait l'accès à une grande partie d'Internet.")
     return nets
 
 

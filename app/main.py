@@ -133,25 +133,25 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
         request.state.ip = ip
         request.state.key = None
         if not net.host_allowed(request.headers.get("host", ""), allowed_hosts):
-            return JSONResponse({"detail": "unknown host name"}, status_code=403)
+            return JSONResponse({"detail": "Nom d'hôte non autorisé (voir ALLOWED_HOSTS)."}, status_code=403)
         token = extract_key(request)
         if token:
             k = db.find_key(hash_key(token))
             if not k:
-                return JSONResponse({"detail": "invalid API key"}, status_code=401)
+                return JSONResponse({"detail": "Clé API invalide."}, status_code=401)
             request.state.key = k
             if request.url.path.startswith("/api/keys"):
-                return JSONResponse({"detail": "API keys cannot manage API keys"}, status_code=403)
+                return JSONResponse({"detail": "Une clé API ne peut pas gérer les clés."}, status_code=403)
             if request.method not in ("GET", "HEAD") and k["scope"] != "write":
-                return JSONResponse({"detail": "read-only API key"}, status_code=403)
+                return JSONResponse({"detail": "Cette clé API est en lecture seule."}, status_code=403)
             if not k["last_used"] or time.time() - k["last_used"] > 60:
                 db.touch_key(k["id"])
             if keys_bypass_acl:
                 return await call_next(request)
         elif net.cross_site(request.method, request.headers):
-            return JSONResponse({"detail": "cross-site request refused"}, status_code=403)
+            return JSONResponse({"detail": "Requête refusée : elle vient d'un autre site."}, status_code=403)
         if not net.is_allowed(ip, allowed_nets()):
-            return JSONResponse({"detail": "forbidden"}, status_code=403)
+            return JSONResponse({"detail": f"Accès refusé : l'adresse {ip} n'est pas dans un réseau autorisé."}, status_code=403)
         return await call_next(request)
 
     @app.middleware("http")
@@ -268,12 +268,15 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
     @app.put("/api/networks")
     def put_networks(body: NetworksIn, request: Request):
         try:
-            nets = net.validate_allowed(net.parse_networks(",".join(body.networks)))
+            nets = net.validate_allowed(net.parse_user_networks(body.networks))
         except ValueError as e:
             raise HTTPException(422, str(e))
         future = net.local_networks() + env_nets + nets
         if not net.is_allowed(request.state.ip, future):
-            raise HTTPException(409, "this would lock you out")
+            me = request.state.ip
+            hint = f" (par exemple {ipaddress.ip_network(str(me) + '/24', strict=False)})" if me else ""
+            raise HTTPException(409, f"Refusé : avec cette liste, ton adresse ({me}) ne serait plus autorisée "
+                                     f"et tu perdrais l'accès. Ajoute un réseau qui la contient{hint}.")
         db.set_setting("extra_networks", [str(n) for n in nets])
         return {"extra": [str(n) for n in nets]}
 
