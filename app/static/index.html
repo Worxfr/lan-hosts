@@ -30,6 +30,15 @@ main{max-width:920px;margin:18px auto;padding:0 14px}
 .search input{width:100%;padding:11px 12px 11px 38px}
 input{font:inherit;padding:11px 12px;border:1.5px solid var(--bd);border-radius:12px;background:#fff;color:var(--tx);min-width:0;width:100%}
 input:focus{outline:0;border-color:var(--ac);box-shadow:0 0 0 3px #2563eb22}
+.opts{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.chips{display:flex;gap:6px;overflow-x:auto;flex:1 1 100%;min-width:0;padding:2px 0;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
+.fc{font:inherit;font-size:13px;font-weight:600;border:1.5px solid var(--bd);background:#fff;color:var(--mut);border-radius:99px;padding:6px 9px;cursor:pointer;white-space:nowrap}
+.fc.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.sort{display:flex;gap:6px;align-items:center;flex:1 1 100%}
+.sort select{flex:1}
+.sort select{font:inherit;font-size:14px;font-weight:600;padding:8px 10px;border:1.5px solid var(--bd);border-radius:12px;background:#fff;color:var(--tx)}
+.dirb{width:38px;height:38px;border-radius:12px;border:1.5px solid var(--bd);background:#fff;color:var(--tx);display:grid;place-items:center;cursor:pointer}
+.dirb svg{width:18px;height:18px;transition:transform .2s}.dirb.desc svg{transform:scaleY(-1)}
 .list{display:grid;gap:12px}
 .card{background:var(--card);border-radius:var(--r);padding:14px 16px;border:1px solid var(--bd);
  display:grid;grid-template-columns:auto 1fr;grid-template-areas:"dot main" "act act";gap:12px 14px;align-items:center;--c:var(--idle);box-shadow:inset 5px 0 0 var(--c),0 1px 3px #1e293b14}
@@ -69,6 +78,9 @@ label{font-size:13px;font-weight:600;color:var(--mut);display:grid;gap:5px}
 </div></header>
 <main>
  <div class="tools"><div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input id="q" placeholder="Rechercher un hôte" autocomplete="off"></div></div>
+ <div class="opts"><div class="chips" id="chips"></div>
+  <div class="sort"><select id="sortsel" aria-label="Trier par"><option value="name">Nom</option><option value="ip">Adresse IP</option><option value="mac">Adresse MAC</option><option value="state">État</option><option value="seen">Dernière vue</option></select>
+  <button class="dirb" id="dirb" title="Inverser l’ordre" aria-label="Inverser l’ordre"><svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button></div></div>
  <div class="list" id="list"></div>
 </main>
 <button class="btn fab" id="addbtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Ajouter</button>
@@ -103,11 +115,23 @@ async function api(m,u,b){const r=await fetch(u,{method:m,headers:{'Content-Type
  if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}if(Array.isArray(d))d='Valeur invalide';throw new Error(d||('Erreur '+r.status))}return r.status==204?null:r.json()}
 function ago(ts){if(!ts)return'jamais vu';const s=Math.round(Date.now()/1000-ts);return s<90?'vu à l’instant':s<5400?'vu il y a '+Math.round(s/60)+' min':s<172800?'vu il y a '+Math.round(s/3600)+' h':'vu il y a '+Math.round(s/86400)+' j'}
 let HOSTS=[];
+const FILTERS=[['all','Tous'],['up','Allumés'],['down','Éteints'],['idle','Inconnus']];
+const SORTS={name:h=>h.name.toLowerCase(),ip:h=>h.ip?h.ip.split('.').reduce((a,b)=>a*256+ +b,0):null,mac:h=>h.mac,
+ state:h=>h.up===1?0:h.up===0?1:2,seen:h=>h.last_seen};
+let VIEW=Object.assign({filter:'all',sort:'name',desc:false},JSON.parse(localStorage.getItem('lanview')||'{}'));
+function saveView(){localStorage.setItem('lanview',JSON.stringify(VIEW))}
+function stateOf(h){return h.up===1?'up':h.up===0?'down':'idle'}
+function sorted(hs){const f=SORTS[VIEW.sort]||SORTS.name,d=VIEW.desc?-1:1;
+ return hs.slice().sort((a,b)=>{const x=f(a),y=f(b);if(x==null&&y==null)return a.name.localeCompare(b.name);if(x==null)return 1;if(y==null)return -1;
+  return (x<y?-1:x>y?1:a.name.localeCompare(b.name))*d})}
 function render(){const f=$('#q').value.trim().toLowerCase();const l=$('#list');l.replaceChildren();
  const up=HOSTS.filter(h=>h.up===1).length;$('#sum').textContent=HOSTS.length?up+' / '+HOSTS.length+' allumés':'aucun hôte';
- const hs=HOSTS.filter(h=>!f||[h.name,h.ip,h.mac].join(' ').toLowerCase().includes(f));
+ const ch=$('#chips');ch.replaceChildren();for(const [k,t] of FILTERS){const n=k==='all'?HOSTS.length:HOSTS.filter(h=>stateOf(h)===k).length;
+  const b=el('button','fc'+(VIEW.filter===k?' on':''),t+' '+n);b.onclick=()=>{VIEW.filter=k;saveView();render()};ch.append(b)}
+ $('#sortsel').value=VIEW.sort;$('#dirb').classList.toggle('desc',VIEW.desc);
+ const hs=sorted(HOSTS.filter(h=>(VIEW.filter==='all'||stateOf(h)===VIEW.filter)&&(!f||[h.name,h.ip,h.mac].join(' ').toLowerCase().includes(f))));
  if(!hs.length){const e=el('div','empty');e.append(ic('srv'));e.append(el('div',null,HOSTS.length?'Aucun résultat.':'Aucun hôte pour l’instant. Ajoute-en un ou lance une détection.'));l.append(e)}
- for(const h of hs){const k=h.up===1?'up':h.up===0?'down':'idle';const c=el('div','card '+(k==='idle'?'':k)+' '+k);
+ for(const h of hs){const k=stateOf(h);const c=el('div','card '+(k==='idle'?'':k)+' '+k);
   c.append(el('span','dot'));const m=el('div','main');m.append(el('div','name',h.name));
   const meta=el('div','meta');meta.append(el('span','st',h.up===1?'Allumé':h.up===0?'Éteint · '+ago(h.last_seen):'Pas encore testé'));
   if(h.ip)meta.append(el('span','chip',h.ip));if(h.mac)meta.append(el('span','chip',h.mac));m.append(meta);c.append(m);
@@ -128,6 +152,8 @@ async function refresh(quiet){const b=$('#refresh');b.classList.add('spin');b.di
  try{HOSTS=await api('POST','api/refresh');render();if(!quiet)toast('État mis à jour')}catch(e){toast(e.message)}b.classList.remove('spin');b.disabled=false}
 $('#refresh').onclick=()=>refresh();
 $('#q').oninput=render;
+$('#sortsel').onchange=e=>{VIEW.sort=e.target.value;saveView();render()};
+$('#dirb').onclick=()=>{VIEW.desc=!VIEW.desc;saveView();render()};
 $('#scan').onclick=async()=>{const b=$('#scan');b.classList.add('spin');b.disabled=true;toast('Détection en cours…');
  try{const fs=await api('POST','api/scan');const c=$('#found');c.replaceChildren();
   if(!fs.length)c.append(el('div','note','Rien trouvé.'));
