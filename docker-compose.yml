@@ -12,6 +12,8 @@ services:
       HOST: ${HOST:-0.0.0.0}                    # address to listen on; use the proxy's gateway to hide the port from the LAN
       ALLOWED_NETWORKS: ${ALLOWED_NETWORKS:-}   # extra networks (the host's own LAN is always allowed)
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}     # reverse proxies whose X-Forwarded-For is trusted
+      ROOT_PATH: ${ROOT_PATH:-}                 # sub-path when served behind a proxy, e.g. /lan-hosts (for /api/docs)
+      API_KEYS_BYPASS_ACL: ${API_KEYS_BYPASS_ACL:-true}  # a valid API key works from any network
     volumes:
       - lan-hosts-data:/data
 volumes:

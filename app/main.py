@@ -1,6 +1,9 @@
 import asyncio
+import hashlib
 import ipaddress
 import os
+import secrets
+import time
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -21,6 +24,22 @@ class HostIn(BaseModel):
     ip: Optional[str] = None
 
 
+class KeyIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    scope: str = Field(default="write", pattern="^(read|write)$")
+
+
+def hash_key(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def extract_key(request: Request):
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip() or None
+    return request.headers.get("x-api-key", "").strip() or None
+
+
 class NetworksIn(BaseModel):
     networks: list[str]
 
@@ -32,6 +51,7 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
     trusted = net.parse_networks(os.environ.get("TRUSTED_PROXIES", ""))
     iface = os.environ.get("SCAN_INTERFACE", "")
     broadcast = os.environ.get("WOL_BROADCAST", "255.255.255.255")
+    keys_bypass_acl = os.environ.get("API_KEYS_BYPASS_ACL", "true").lower() in ("1", "true", "yes")
 
     def extra_nets():
         return net.parse_networks(",".join(db.get_setting("extra_networks", [])))
@@ -89,7 +109,8 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
         for t in tasks:
             t.cancel()
 
-    app = FastAPI(title="lan-hosts", lifespan=lifespan)
+    app = FastAPI(title="lan-hosts", lifespan=lifespan, root_path=os.environ.get("ROOT_PATH", ""),
+                  docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
     app.state.db = db
 
     @app.middleware("http")
@@ -97,6 +118,21 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
         peer = request.client.host if request.client else ""
         ip = net.client_ip(peer, request.headers.get("x-forwarded-for", ""), trusted)
         request.state.ip = ip
+        request.state.key = None
+        token = extract_key(request)
+        if token:
+            k = db.find_key(hash_key(token))
+            if not k:
+                return JSONResponse({"detail": "invalid API key"}, status_code=401)
+            request.state.key = k
+            if request.url.path.startswith("/api/keys"):
+                return JSONResponse({"detail": "API keys cannot manage API keys"}, status_code=403)
+            if request.method not in ("GET", "HEAD") and k["scope"] != "write":
+                return JSONResponse({"detail": "read-only API key"}, status_code=403)
+            if not k["last_used"] or time.time() - k["last_used"] > 60:
+                db.touch_key(k["id"])
+            if keys_bypass_acl:
+                return await call_next(request)
         if not net.is_allowed(ip, allowed_nets()):
             return JSONResponse({"detail": "forbidden"}, status_code=403)
         return await call_next(request)
@@ -117,6 +153,28 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
     @app.get("/api/hosts")
     def list_hosts():
         return db.hosts()
+
+    @app.get("/api/hosts/{hid}")
+    def get_host(hid: int):
+        h = db.host(hid)
+        if not h:
+            raise HTTPException(404)
+        return h
+
+    @app.get("/api/keys")
+    def list_keys():
+        return db.keys()
+
+    @app.post("/api/keys", status_code=201)
+    def create_key(body: KeyIn):
+        token = "lh_" + secrets.token_urlsafe(32)
+        kid = db.add_key(body.name.strip(), token[:8], hash_key(token), body.scope)
+        return {"id": kid, "name": body.name.strip(), "scope": body.scope, "key": token,
+                "note": "Store this key now, it cannot be shown again."}
+
+    @app.delete("/api/keys/{kid}", status_code=204)
+    def delete_key(kid: int):
+        db.delete_key(kid)
 
     @app.post("/api/hosts", status_code=201)
     def add_host(h: HostIn):

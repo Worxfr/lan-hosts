@@ -11,6 +11,9 @@ class DB:
         CREATE TABLE IF NOT EXISTS hosts(
           id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
           mac TEXT UNIQUE, ip TEXT, up INTEGER, last_seen REAL, checked REAL);
+        CREATE TABLE IF NOT EXISTS api_keys(
+          id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, prefix TEXT NOT NULL,
+          hash TEXT UNIQUE NOT NULL, scope TEXT NOT NULL, created REAL, last_used REAL);
         CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
         """)
 
@@ -44,6 +47,28 @@ class DB:
 
     def set_ip(self, hid, ip):
         self.c.execute("UPDATE hosts SET ip=? WHERE id=?", (ip, hid))
+        self.c.commit()
+
+    def add_key(self, name, prefix, h, scope):
+        cur = self.c.execute("INSERT INTO api_keys(name,prefix,hash,scope,created) VALUES(?,?,?,?,?)",
+                             (name, prefix, h, scope, time.time()))
+        self.c.commit()
+        return cur.lastrowid
+
+    def keys(self):
+        return [dict(r) for r in self.c.execute(
+            "SELECT id,name,prefix,scope,created,last_used FROM api_keys ORDER BY id")]
+
+    def find_key(self, h):
+        r = self.c.execute("SELECT * FROM api_keys WHERE hash=?", (h,)).fetchone()
+        return dict(r) if r else None
+
+    def touch_key(self, kid):
+        self.c.execute("UPDATE api_keys SET last_used=? WHERE id=?", (time.time(), kid))
+        self.c.commit()
+
+    def delete_key(self, kid):
+        self.c.execute("DELETE FROM api_keys WHERE id=?", (kid,))
         self.c.commit()
 
     def get_setting(self, key, default=None):

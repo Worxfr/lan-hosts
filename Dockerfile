@@ -5,6 +5,6 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
-ENV DB_PATH=/data/lan-hosts.db PORT=8088 HOST=0.0.0.0
+ENV DB_PATH=/data/lan-hosts.db PORT=8088 HOST=0.0.0.0 ROOT_PATH=""
 VOLUME /data
 CMD ["sh", "-c", "exec uvicorn app.main:app_factory --factory --host ${HOST} --port ${PORT}"]

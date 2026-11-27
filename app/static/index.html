@@ -64,6 +64,9 @@ label{font-size:13px;font-weight:600;color:var(--mut);display:grid;gap:5px}
 .found{display:grid;gap:8px;max-height:55vh;overflow:auto}
 .f{display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid var(--bd);border-radius:12px;padding:10px 12px}
 .f .main{flex:1}.f .sub{font-size:12.5px;color:var(--mut);overflow-wrap:anywhere}.done{color:var(--ok);font-weight:600;font-size:13px}
+hr{border:0;border-top:1px solid var(--bd);margin:4px 0;width:100%}code{background:#f1f5f9;padding:1px 5px;border-radius:6px}
+.sel{font:inherit;padding:8px;border:1.5px solid var(--bd);border-radius:12px;background:#fff;color:var(--tx)}
+.keyv{font:13px ui-monospace,Menlo,monospace;background:#fef9c3;border-radius:10px;padding:10px;overflow-wrap:anywhere;user-select:all;color:#422006}
 .note{font-size:13px;color:var(--mut)}
 @media(max-width:560px){dialog{margin:auto auto 12px}}
 #msg{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);background:#162033;color:#fff;padding:10px 18px;border-radius:12px;opacity:0;pointer-events:none;transition:.25s;z-index:20;max-width:90%}
@@ -99,10 +102,15 @@ label{font-size:13px;font-weight:600;color:var(--mut);display:grid;gap:5px}
 <dialog id="sdlg"><div class="dh"><h2>Hôtes détectés</h2><button class="ib x" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
  <div class="db"><div class="found" id="found"></div></div></dialog>
 
-<dialog id="ndlg"><form id="nf"><div class="dh"><h2>Réseaux autorisés</h2><button type="button" class="ib x" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+<dialog id="ndlg"><form id="nf"><div class="dh"><h2>Accès et clés API</h2><button type="button" class="ib x" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
  <div class="db"><div class="note" id="netinfo"></div>
  <label>Réseaux supplémentaires<input name="nets" placeholder="10.0.0.0/24, 100.64.0.0/10" autocomplete="off"></label>
- <button class="btn">Enregistrer</button></div></form></dialog>
+ <button class="btn">Enregistrer les réseaux</button>
+ <hr><div class="note"><b>Clés API</b> : pour piloter les hôtes depuis un script. Utilise l’en-tête <code>X-API-Key</code>. Documentation : <a href="api/docs" target="_blank">api/docs</a>.</div>
+ <div id="keys" class="found"></div>
+ <div class="row2"><input id="kname" placeholder="Nom de la clé" maxlength="60"><select id="kscope" class="sel"><option value="write">Lecture + actions</option><option value="read">Lecture seule</option></select></div>
+ <button type="button" class="btn soft" id="kadd">Créer une clé</button>
+ <div id="newkey" class="note" hidden></div></div></form></dialog>
 <div id="msg"></div>
 <script>
 const $=s=>document.querySelector(s);
@@ -164,7 +172,15 @@ $('#scan').onclick=async()=>{const b=$('#scan');b.classList.add('spin');b.disabl
   for(const f of fs){const r=el('div','f');const m=el('div','main');m.append(el('div','name',f.ip));m.append(el('div','sub',f.mac+(f.vendor&&f.vendor!=='(Unknown)'?' · '+f.vendor:'')));r.append(m);
    if(f.known)r.append(el('span','done','Déjà ajouté'));else{const a=el('button','btn soft','Ajouter');a.onclick=()=>{$('#sdlg').close();openDlg(null);hf.name.value=f.vendor&&f.vendor!=='(Unknown)'?f.vendor:'';hf.ip.value=f.ip;hf.mac.value=f.mac;hf.name.focus()};r.append(a)}c.append(r)}
   $('#sdlg').showModal()}catch(x){toast(x.message)}b.classList.remove('spin');b.disabled=false};
-$('#netbtn').onclick=async()=>{try{const n=await api('GET','api/networks');
+async function loadKeys(){const c=$('#keys');c.replaceChildren();const ks=await api('GET','api/keys');
+ if(!ks.length)c.append(el('div','note','Aucune clé.'));
+ for(const k of ks){const r=el('div','f');const m=el('div','main');m.append(el('div','name',k.name));
+  m.append(el('div','sub',k.prefix+'… · '+(k.scope==='read'?'lecture seule':'lecture + actions')+' · '+(k.last_used?ago(k.last_used).replace('vu','utilisée'):'jamais utilisée')));r.append(m);
+  const d=el('button','btn red','Révoquer');d.onclick=async()=>{if(confirm('Révoquer la clé '+k.name+' ?')){await api('DELETE','api/keys/'+k.id);loadKeys()}};r.append(d);c.append(r)}}
+$('#kadd').onclick=async()=>{const n=$('#kname').value.trim();if(!n){toast('Donne un nom à la clé');return}
+ try{const r=await api('POST','api/keys',{name:n,scope:$('#kscope').value});const o=$('#newkey');o.hidden=false;o.replaceChildren();
+  o.append(el('div',null,'Copie cette clé maintenant, elle ne sera plus affichée :'));o.append(el('div','keyv',r.key));$('#kname').value='';loadKeys()}catch(x){toast(x.message)}};
+$('#netbtn').onclick=async()=>{try{$('#newkey').hidden=true;loadKeys();const n=await api('GET','api/networks');
  $('#netinfo').textContent='Ton adresse : '+n.your_ip+'. Réseaux du serveur : '+[...new Set(n.detected)].join(', ')+(n.from_env.length?'. Configurés : '+n.from_env.join(', '):'')+'.';
  $('#nf').nets.value=n.extra.join(', ');$('#ndlg').showModal()}catch(x){toast(x.message)}};
 $('#nf').onsubmit=async e=>{e.preventDefault();try{await api('PUT','api/networks',{networks:e.target.nets.value.split(',').map(s=>s.trim()).filter(Boolean)});$('#ndlg').close();toast('Enregistré')}catch(x){toast(x.message)}};
