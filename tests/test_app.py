@@ -114,3 +114,18 @@ def test_edit_host(tmp_path, monkeypatch):
     r = c.put(f"/api/hosts/{hid}", json={"name": "b", "ip": "10.0.0.9", "mac": "AA:BB:CC:DD:EE:00"})
     assert r.status_code == 200 and r.json()["name"] == "b" and r.json()["mac"] == "aa:bb:cc:dd:ee:00"
     assert c.put("/api/hosts/999", json={"name": "x", "ip": "10.0.0.1"}).status_code == 404
+
+
+def test_rescan_follows_dhcp_change(tmp_path, monkeypatch):
+    async def fake(nets, iface=""):
+        return [{"ip": "10.0.0.99", "mac": "aa:bb:cc:dd:ee:ff", "vendor": ""},
+                {"ip": "10.0.0.7", "mac": "11:22:33:44:55:66", "vendor": ""}]
+    monkeypatch.setattr(net, "scan", fake)
+    c = client(mk(tmp_path, monkeypatch))
+    c.post("/api/hosts", json={"name": "moved", "ip": "10.0.0.5", "mac": "aa:bb:cc:dd:ee:ff"})
+    c.post("/api/hosts", json={"name": "absent", "ip": "10.0.0.6", "mac": "de:ad:be:ef:00:01"})
+    r = c.post("/api/rescan").json()
+    assert r["changes"] == [{"name": "moved", "old": "10.0.0.5", "new": "10.0.0.99"}]
+    h = {x["name"]: x for x in r["hosts"]}
+    assert h["moved"]["ip"] == "10.0.0.99" and h["moved"]["up"] == 1
+    assert h["absent"]["ip"] == "10.0.0.6" and h["absent"]["up"] is None

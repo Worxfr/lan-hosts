@@ -28,6 +28,7 @@ No authentication: do not expose it outside your LAN.
 | `ALLOWED_NETWORKS` | empty | extra CIDRs allowed, comma separated |
 | `TRUSTED_PROXIES` | empty | reverse proxies whose `X-Forwarded-For` is trusted |
 | `POLL_INTERVAL` | `30` | seconds between status checks |
+| `RESCAN_INTERVAL` | `300` | seconds between ARP rescans that follow DHCP IP changes (0 disables) |
 | `SCAN_INTERFACE` | auto | interface used by the scan |
 | `WOL_BROADCAST` | `255.255.255.255` | broadcast address for Wake-on-LAN |
 | `DB_PATH` | `/data/lan-hosts.db` | SQLite file |

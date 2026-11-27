@@ -42,6 +42,10 @@ class DB:
             self.c.execute("UPDATE hosts SET up=0,checked=? WHERE id=?", (now, hid))
         self.c.commit()
 
+    def set_ip(self, hid, ip):
+        self.c.execute("UPDATE hosts SET ip=? WHERE id=?", (ip, hid))
+        self.c.commit()
+
     def get_setting(self, key, default=None):
         r = self.c.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
         return json.loads(r["value"]) if r else default

@@ -47,6 +47,25 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
                 db.set_status(h["id"], await net.is_up(h["ip"]))
         await asyncio.gather(*[one(h) for h in db.hosts() if h["ip"]])
 
+    scan_lock = asyncio.Lock()
+    rescan_every = int(os.environ.get("RESCAN_INTERVAL", "300"))
+
+    async def rescan():
+        """ARP-scan the LAN and follow known hosts (by MAC) whose IP changed (DHCP)."""
+        async with scan_lock:
+            found = await net.scan(net.local_networks(for_scan=True) + extra_nets(), iface)
+            ip_of = {f["mac"]: f["ip"] for f in found}
+            changes = []
+            for h in db.hosts():
+                new = ip_of.get(h["mac"]) if h["mac"] else None
+                if not new:
+                    continue
+                if new != h["ip"]:
+                    db.set_ip(h["id"], new)
+                    changes.append({"name": h["name"], "old": h["ip"], "new": new})
+                db.set_status(h["id"], True)  # it answered ARP
+            return found, changes
+
     async def poller():
         while True:
             try:
@@ -55,12 +74,20 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
                 pass
             await asyncio.sleep(interval)
 
+    async def rescanner():
+        while rescan_every > 0:
+            await asyncio.sleep(rescan_every)
+            try:
+                await rescan()
+            except Exception:
+                pass
+
     @asynccontextmanager
     async def lifespan(app):
-        task = asyncio.create_task(poller()) if start_poller else None
+        tasks = [asyncio.create_task(poller()), asyncio.create_task(rescanner())] if start_poller else []
         yield
-        if task:
-            task.cancel()
+        for t in tasks:
+            t.cancel()
 
     app = FastAPI(title="lan-hosts", lifespan=lifespan)
     app.state.db = db
@@ -129,6 +156,11 @@ def create_app(db_path=None, poll_interval=None, start_poller=True) -> FastAPI:
     async def refresh():
         await refresh_all()
         return db.hosts()
+
+    @app.post("/api/rescan")
+    async def force_rescan():
+        _, changes = await rescan()
+        return {"changes": changes, "hosts": db.hosts()}
 
     @app.post("/api/scan")
     async def scan():
